@@ -57,7 +57,7 @@ public static class SeedDataGenerator
         };
     }
 
-    public static History MakeHistory(int worldId, int itemId, long? lastUploadTime = null, int? maxStackSize = 999)
+    public static History MakeHistory(int worldId, int itemId, long? lastUploadTime = null, int? maxStackSize = 999, DateTime? until = null)
     {
         var rand = new Random();
         return new History
@@ -74,7 +74,7 @@ public static class SeedDataGenerator
                     Hq = rand.NextDouble() > 0.5,
                     PricePerUnit = rand.Next(100, 60000),
                     Quantity = rand.Next(1, (int)maxStackSize),
-                    SaleTime = new DateTime((DateTime.UtcNow.Ticks - rand.Next(0, 2100000000)) / TimeSpan.TicksPerMillisecond * TimeSpan.TicksPerMillisecond, DateTimeKind.Utc),
+                    SaleTime = new DateTime(((until ?? DateTime.UtcNow).Ticks - rand.Next(0, 2100000000)) / TimeSpan.TicksPerMillisecond * TimeSpan.TicksPerMillisecond, DateTimeKind.Utc),
                     UploaderIdHash = "2A",
                 })
                 .ToList(),

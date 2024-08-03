@@ -148,6 +148,46 @@ public class HistoryControllerTests
     [Theory]
     [InlineData("crystaL", "")]
     [InlineData("Crystal", "50")]
+    public async Task Controller_Get_Succeeds_SingleItem_DataCenter_TooOld(string worldOrDc, string entriesToReturn)
+    {
+        var test = TestResources.Create();
+
+        var document1 = SeedDataGenerator.MakeHistory(74, 5333, until: DateTime.UtcNow.AddDays(-8));
+        await test.History.Create(document1);
+
+        var result = await test.Controller.Get("5333", worldOrDc, entriesToReturn);
+        var history = (HistoryView)Assert.IsType<OkObjectResult>(result).Value;
+        Assert.Empty(history.Sales);
+    }
+
+    [Theory]
+    [InlineData("crystaL", "")]
+    [InlineData("Crystal", "50")]
+    public async Task Controller_Get_Succeeds_SingleItem_DataCenter_UntilTime(string worldOrDc, string entriesToReturn)
+    {
+        var test = TestResources.Create();
+        var now = DateTime.UtcNow;
+        var entriesUntil = new DateTimeOffset(now.AddDays(-7)).ToUnixTimeSeconds().ToString();
+
+        var document1 = SeedDataGenerator.MakeHistory(74, 5333, until: now.AddDays(-8));
+        await test.History.Create(document1);
+
+        var document2 = SeedDataGenerator.MakeHistory(34, 5333);
+        await test.History.Create(document2);
+
+        var result = await test.Controller.Get("5333", worldOrDc, entriesToReturn, entriesUntil: entriesUntil);
+        var history = (HistoryView)Assert.IsType<OkObjectResult>(result).Value;
+
+        AssertHistoryValidDataCenter(
+            document1,
+            history,
+            document1.Sales,
+            worldOrDc);
+    }
+
+    [Theory]
+    [InlineData("crystaL", "")]
+    [InlineData("Crystal", "50")]
     public async Task Controller_Get_Succeeds_MultiItem_DataCenter(string worldOrDc, string entriesToReturn)
     {
         var test = TestResources.Create();
@@ -182,6 +222,56 @@ public class HistoryControllerTests
             document2.Sales,
             worldOrDc);
     }
+
+    [Theory]
+    [InlineData("crystaL", "")]
+    [InlineData("Crystal", "50")]
+    public async Task Controller_Get_Succeeds_MultiItem_DataCenter_TooOld(string worldOrDc, string entriesToReturn)
+    {
+        var test = TestResources.Create();
+        var lastUploadTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var now = DateTime.UtcNow;
+
+        var document1 = SeedDataGenerator.MakeHistory(74, 5333, lastUploadTime, until: now.AddDays(-8));
+        await test.History.Create(document1);
+
+        var document2 = SeedDataGenerator.MakeHistory(34, 5, lastUploadTime, until: now.AddDays(-8));
+        await test.History.Create(document2);
+
+        var result = await test.Controller.Get("5,5333", worldOrDc, entriesToReturn);
+        var history = (HistoryMultiViewV2)Assert.IsType<OkObjectResult>(result).Value;
+
+        Assert.All(history.Items.Values, v => Assert.Empty(v.Sales));
+    }
+
+    [Theory]
+    [InlineData("crystaL", "")]
+    [InlineData("Crystal", "50")]
+    public async Task Controller_Get_Succeeds_MultiItem_DataCenter_UntilTime(string worldOrDc, string entriesToReturn)
+    {
+        var test = TestResources.Create();
+        var lastUploadTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var now = DateTime.UtcNow;
+        var entriesUntil = new DateTimeOffset(now.AddDays(-7)).ToUnixTimeSeconds().ToString();
+
+        var document1 = SeedDataGenerator.MakeHistory(74, 5333, lastUploadTime);
+        await test.History.Create(document1);
+
+        var document2 = SeedDataGenerator.MakeHistory(34, 5, lastUploadTime, until: now.AddDays(-8));
+        await test.History.Create(document2);
+
+        var result = await test.Controller.Get("5,5333", worldOrDc, entriesToReturn, entriesUntil: entriesUntil);
+        var history = (HistoryMultiViewV2)Assert.IsType<OkObjectResult>(result).Value;
+
+        AssertHistoryValidDataCenter(
+            document2,
+            history.Items.First(item => item.Key == document2.ItemId).Value,
+            document2.Sales,
+            worldOrDc);
+        var empty = history.Items.First(item => item.Key == document1.ItemId).Value;
+        Assert.Empty(empty.Sales);
+    }
+
 
     [Theory]
     [InlineData("74", "")]

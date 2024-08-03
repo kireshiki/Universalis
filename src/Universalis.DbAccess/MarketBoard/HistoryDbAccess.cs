@@ -96,7 +96,7 @@ public class HistoryDbAccess : IHistoryDbAccess
         var sales = new Dictionary<(int, int), IEnumerable<Sale>>();
         foreach (var (worldId, itemId) in worldItemTuples.Where(marketItemsDict.ContainsKey))
         {
-            sales[(worldId, itemId)] = await _saleStore.RetrieveBySaleTime(worldId, itemId, query.Count ?? 200,
+            sales[(worldId, itemId)] = await _saleStore.RetrieveBySaleTime(worldId, itemId, query.Count ?? 200, query.From, query.To,
                     cancellationToken: cancellationToken);
         }
 

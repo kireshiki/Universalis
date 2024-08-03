@@ -183,6 +183,52 @@ public class SaleStoreTests
 #if DEBUG
     [Fact]
 #endif
+    public async Task InsertManyRetrieveBySaleTimeWithBounds_Works()
+    {
+        var store = _fixture.Services.GetRequiredService<ISaleStore>();
+        var sales = new List<Sale>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                WorldId = 25,
+                ItemId = 5333,
+                Hq = true,
+                PricePerUnit = 300,
+                Quantity = 20,
+                BuyerName = "Hello World",
+                OnMannequin = false,
+                SaleTime = new DateTime(2022, 10, 2, 0, 0, 0, DateTimeKind.Utc),
+                UploaderIdHash = "efuwhafejgj3weg0wrkporeh",
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                WorldId = 25,
+                ItemId = 5333,
+                Hq = true,
+                PricePerUnit = 300,
+                Quantity = 20,
+                BuyerName = "Hello World",
+                OnMannequin = false,
+                SaleTime = new DateTime(2022, 10, 1, 0, 0, 0, DateTimeKind.Utc),
+                UploaderIdHash = "efuwhafejgj3weg0wrkporeh",
+            },
+        };
+
+        await store.InsertMany(sales);
+        await Task.Delay(1000);
+        var from = new DateTime(2022, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2022, 10, 1, 23, 59, 59, DateTimeKind.Utc);
+        var results = (await store.RetrieveBySaleTime(25, 5333, 2, from, to)).ToList();
+
+        Assert.Single(results);
+        Assert.Equal(sales[1], results[0]);
+    }
+
+#if DEBUG
+    [Fact]
+#endif
     public async Task GetMostRecentSaleInWorld_Works()
     {
         await _fixture.ClearCache();

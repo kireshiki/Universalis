@@ -152,7 +152,7 @@ public class SaleStore : ISaleStore, IDisposable
         }
     }
 
-    public async Task<IEnumerable<Sale>> RetrieveBySaleTime(int worldId, int itemId, int count, DateTime? from = null,
+    public async Task<IEnumerable<Sale>> RetrieveBySaleTime(int worldId, int itemId, int count, DateTimeOffset? from = null, DateTimeOffset? to = null,
         CancellationToken cancellationToken = default)
     {
         using var activity = Util.ActivitySource.StartActivity("SaleStore.RetrieveBySaleTime");
@@ -161,7 +161,7 @@ public class SaleStore : ISaleStore, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            return await RetrieveBySaleTimeCore(worldId, itemId, count, from);
+            return await RetrieveBySaleTimeCore(worldId, itemId, count, from, to);
         }
         finally
         {
@@ -169,13 +169,14 @@ public class SaleStore : ISaleStore, IDisposable
         }
     }
 
-    private async Task<IEnumerable<Sale>> RetrieveBySaleTimeCore(int worldId, int itemId, int count, DateTime? from)
+    private async Task<IEnumerable<Sale>> RetrieveBySaleTimeCore(int worldId, int itemId, int count, DateTimeOffset? from, DateTimeOffset? to)
     {
         using var activity = Util.ActivitySource.StartActivity("SaleStore.RetrieveBySaleTimeCore");
         activity?.AddTag("query.worldId", worldId);
         activity?.AddTag("query.itemId", itemId);
         activity?.AddTag("query.count", count);
         activity?.AddTag("query.from", from?.ToString("s", CultureInfo.InvariantCulture));
+        activity?.AddTag("query.to", to?.ToString("s", CultureInfo.InvariantCulture));
 
         if (count == 0)
         {
@@ -183,14 +184,15 @@ public class SaleStore : ISaleStore, IDisposable
         }
 
         // Fetch data from the database
-        var timestamp = from == null ? 0 : new DateTimeOffset(from.Value).ToUnixTimeMilliseconds();
+        var timestampFrom = from.GetValueOrDefault(DateTimeOffset.UnixEpoch).ToUnixTimeMilliseconds();
+        var timestampTo = to.GetValueOrDefault(DateTimeOffset.UtcNow).ToUnixTimeMilliseconds();
         try
         {
             activity?.AddEvent(new ActivityEvent("CassandraFetchAsync"));
             RowsReadCount.Observe(count);
             var sales = await _mapper.Value.FetchAsync<Sale>(
-                "SELECT id, sale_time, item_id, world_id, buyer_name, hq, on_mannequin, quantity, unit_price, uploader_id FROM sale WHERE item_id=? AND world_id=? AND sale_time>=? ORDER BY sale_time DESC LIMIT ?",
-                itemId, worldId, timestamp, count);
+                "SELECT id, sale_time, item_id, world_id, buyer_name, hq, on_mannequin, quantity, unit_price, uploader_id FROM sale WHERE item_id=? AND world_id=? AND sale_time>=? AND sale_time<=? ORDER BY sale_time DESC LIMIT ?",
+                itemId, worldId, timestampFrom, timestampTo, count);
             return sales
                 .Select(static sale =>
                 {

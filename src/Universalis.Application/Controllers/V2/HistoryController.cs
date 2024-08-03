@@ -25,9 +25,10 @@ public class HistoryController : HistoryControllerBase
     /// </summary>
     /// <param name="itemIds">The item ID or comma-separated item IDs to retrieve data for.</param>
     /// <param name="worldDcRegion">The world or data center to retrieve data for. This may be an ID or a name. Regions should be specified as Japan, Europe, North-America, Oceania, China, or 中国.</param>
-    /// <param name="entriesToReturn">The number of entries to return per item. By default, this is set to 1800, but may be set to a maximum of 999999.</param>
+    /// <param name="entriesToReturn">The number of entries to return per item. By default, this is set to 1800, but may be set to a maximum of 99999.</param>
     /// <param name="statsWithin">The amount of time before now to calculate stats over, in milliseconds. By default, this is 7 days.</param>
-    /// <param name="entriesWithin">The amount of time before now to take entries within, in seconds. Negative values will be ignored. By default, this is 7 days.</param>
+    /// <param name="entriesWithin">The amount of time before entriesUntil or now to take entries within, in seconds. Negative values will be ignored. By default, this is 7 days.</param>
+    /// <param name="entriesUntil">The UNIX timestamp in seconds to take entries until. Negative values will be ignored. By default, this is current time.</param>
     /// <param name="minSalePrice">The inclusive minimum unit sale price of entries to return.</param>
     /// <param name="maxSalePrice">The inclusive maximum unit sale price of entries to return.</param>
     /// <param name="cancellationToken"></param>
@@ -47,6 +48,7 @@ public class HistoryController : HistoryControllerBase
         [FromQuery] string entriesToReturn,
         [FromQuery] string statsWithin = "",
         [FromQuery] string entriesWithin = "",
+        [FromQuery] string entriesUntil = "",
         [FromQuery] int minSalePrice = 0,
         [FromQuery] int maxSalePrice = int.MaxValue,
         CancellationToken cancellationToken = default)
@@ -76,7 +78,7 @@ public class HistoryController : HistoryControllerBase
         var entries = 1800;
         if (int.TryParse(entriesToReturn, out var queryEntries))
         {
-            entries = Math.Min(Math.Max(0, queryEntries), 999999);
+            entries = Math.Min(Math.Max(0, queryEntries), 99999);
         }
 
         var statsWithinMs = 604800000L;
@@ -91,6 +93,12 @@ public class HistoryController : HistoryControllerBase
             entriesWithinSeconds = Math.Max(0, queryEntriesWithinSeconds);
         }
 
+        DateTimeOffset? entriesUntilUtc = null;
+        if (long.TryParse(entriesUntil, out var entriesUntilSeconds))
+        {
+            entriesUntilUtc = DateTimeOffset.FromUnixTimeSeconds(entriesUntilSeconds);
+        }
+
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
 
@@ -103,13 +111,13 @@ public class HistoryController : HistoryControllerBase
                 return NotFound();
             }
 
-            var (_, historyView) = await GetHistoryView(worldDc, worldIds, itemId, entries, statsWithinMs, entriesWithinSeconds, minSalePrice, maxSalePrice, cts.Token);
+            var (_, historyView) = await GetHistoryView(worldDc, worldIds, itemId, entries, statsWithinMs, entriesWithinSeconds, entriesUntilUtc, minSalePrice, maxSalePrice, cts.Token);
             return Ok(historyView);
         }
 
         // Multi-item handling
         var historyViewTasks = itemIdsArray
-            .Select(itemId => GetHistoryView(worldDc, worldIds, itemId, entries, statsWithinMs, entriesWithinSeconds, minSalePrice, maxSalePrice, cts.Token))
+            .Select(itemId => GetHistoryView(worldDc, worldIds, itemId, entries, statsWithinMs, entriesWithinSeconds, entriesUntilUtc, minSalePrice, maxSalePrice, cts.Token))
             .ToList();
         var historyViews = await Task.WhenAll(historyViewTasks);
         var unresolvedItems = historyViews

@@ -10,7 +10,7 @@ public interface ISaleStore
 {
     Task InsertMany(ICollection<Sale> sales, CancellationToken cancellationToken = default);
 
-    Task<IEnumerable<Sale>> RetrieveBySaleTime(int worldId, int itemId, int count, DateTime? from = null,
+    Task<IEnumerable<Sale>> RetrieveBySaleTime(int worldId, int itemId, int count, DateTimeOffset? from = null, DateTimeOffset? to = null,
         CancellationToken cancellationToken = default);
 
     Task<(TradeVelocity Nq, TradeVelocity Hq)> RetrieveUnitTradeVelocity(string worldIdDcRegion, int itemId, DateOnly from, DateOnly to,

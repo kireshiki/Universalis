@@ -29,25 +29,28 @@ public class HistoryControllerBase : WorldDcRegionControllerBase
         int entries,
         long statsWithin = 604800000,
         long entriesWithin = 604800,
+        DateTimeOffset? entriesUntil = null,
         int minSalePrice = 0,
         int maxSalePrice = int.MaxValue,
         CancellationToken cancellationToken = default)
     {
         using var activity = Util.ActivitySource.StartActivity("HistoryControllerBase.View");
+        var now = DateTimeOffset.UtcNow;
 
         // Fetch the data
-        var enumerable = await History.RetrieveMany(new HistoryManyQuery
+        var query = new HistoryManyQuery
         {
             WorldIds = worldIds,
             ItemIds = new[] { itemId },
             Count = entries,
-        }, cancellationToken);
+            From = entriesWithin < 0 ? null : (entriesUntil ?? now).AddSeconds(-entriesWithin),
+            To = entriesUntil,
+        };
+        var enumerable = await History.RetrieveMany(query, cancellationToken);
         var data = CollectSales(enumerable);
         var resolved = data.Count > 0;
         var worlds = GameData.AvailableWorlds();
 
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var nowSeconds = now / 1000;
         var history = data
             .Where(o => worlds.ContainsKey(o.WorldId))
             .Aggregate(new HistoryView(), (agg, next) =>
@@ -56,8 +59,11 @@ public class HistoryControllerBase : WorldDcRegionControllerBase
                 next.Sales ??= new List<Sale>();
 
                 agg.Sales = next.Sales
-                    .Where(s => entriesWithin < 0 ||
-                                nowSeconds - new DateTimeOffset(s.SaleTime).ToUnixTimeSeconds() < entriesWithin)
+                    .Where(s => {
+                        var timestamp = new DateTimeOffset(s.SaleTime);
+                        return (query.From == null || query.From?.CompareTo(timestamp) <= 0) &&
+                            (query.To == null || query.To?.CompareTo(timestamp) >= 0);
+                    })
                     .Where(s => s.Quantity is > 0)
                     .Where(s => s.PricePerUnit >= minSalePrice && s.PricePerUnit <= maxSalePrice)
                     .Select(s => new MinimizedSaleView
@@ -85,6 +91,7 @@ public class HistoryControllerBase : WorldDcRegionControllerBase
         var nqSales = history.Sales.Where(s => !s.Hq).ToList();
         var hqSales = history.Sales.Where(s => s.Hq).ToList();
 
+        var untilTimestampMs = (query.To ?? now).ToUnixTimeMilliseconds();
         return (resolved, new HistoryView
         {
             Sales = history.Sales.Take(entries).ToList(),
@@ -101,11 +108,11 @@ public class HistoryControllerBase : WorldDcRegionControllerBase
             StackSizeHistogramHq = new SortedDictionary<int, int>(Statistics.GetDistribution(hqSales
                 .Select(s => s.Quantity))),
             SaleVelocity = Statistics.VelocityPerDay(history.Sales
-                .Select(s => (s.TimestampUnixSeconds * 1000, s.Quantity)), now, statsWithin),
+                .Select(s => (s.TimestampUnixSeconds * 1000, s.Quantity)), untilTimestampMs, statsWithin),
             SaleVelocityNq = Statistics.VelocityPerDay(nqSales
-                .Select(s => (s.TimestampUnixSeconds * 1000, s.Quantity)), now, statsWithin),
+                .Select(s => (s.TimestampUnixSeconds * 1000, s.Quantity)), untilTimestampMs, statsWithin),
             SaleVelocityHq = Statistics.VelocityPerDay(hqSales
-                .Select(s => (s.TimestampUnixSeconds * 1000, s.Quantity)), now, statsWithin),
+                .Select(s => (s.TimestampUnixSeconds * 1000, s.Quantity)), untilTimestampMs, statsWithin),
         });
     }
 
