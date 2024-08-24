@@ -327,6 +327,17 @@ public class CurrentlyShownControllerTests
     }
 
     [Fact]
+    public async Task Get_ItemIdNotMarketable_ReturnsNotFound()
+    {
+        var nonMarketableId = "99999";
+        
+        var worldDcRegion = "world";
+        
+        var itemIds = nonMarketableItemId;
+
+    }
+
+    [Fact]
     public async Task Controller_Get_Succeeds_SingleItem_DataCenter_WhenNotMarketable()
     {
         var test = TestResources.Create();
