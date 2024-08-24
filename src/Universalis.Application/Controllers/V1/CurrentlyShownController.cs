@@ -127,10 +127,10 @@ public class CurrentlyShownController : CurrentlyShownControllerBase
         if (itemIdsArray.Length == 1)
         {
             var itemId = itemIdsArray[0];
-
+            // Returns NotFound() if the GameData.MarketableItemIds() does not contain the itemId
             if (!GameData.MarketableItemIds().Contains(itemId))
             {
-                return Ok(new CurrentlyShownView());
+                return NotFound();
             }
 
             var (_, currentlyShownView) = await GetCurrentlyShownView(
